@@ -1,0 +1,9 @@
+{
+  "name": "Inventario Barriles Kross",
+  "short_name": "Kross Barriles",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#f7f3e8",
+  "theme_color": "#111111",
+  "icons": []
+}
