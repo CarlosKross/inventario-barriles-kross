@@ -45,24 +45,43 @@ export function parseSalesCSV(csv: string): SalesRecord[] {
 
   const headers = rows[0].map(normalizeHeader);
   const dateIndex = findHeader(headers, ["fecha", "date", "dia"]);
-  const branchIndex = findHeader(headers, ["sucursal", "branch", "local"]);
-  const skuIndex = findHeader(headers, ["sku", "producto", "product", "nombre_producto"]);
+  const branchIndex = findHeader(headers, ["sucursal", "branch", "local", "destino_corregido", "destino", "observaciones"]);
+  const fallbackBranchIndex = findHeader(headers, ["destino", "observaciones"]);
+  const skuIndex = findHeader(headers, ["sku", "producto", "product", "nombre_producto", "descripcion", "descripción"]);
   const litersIndex = findHeader(headers, ["litros_vendidos", "litros", "venta_litros"]);
   const barrelsIndex = findHeader(headers, ["barriles_vendidos", "barriles", "venta_barriles"]);
+  const outputTypeIndex = findHeader(headers, ["tipo_salida", "tipo_de_salida"]);
+  const formatIndex = findHeader(headers, ["formato"]);
+  const typeIndex = findHeader(headers, ["tipo"]);
 
   if (branchIndex < 0 || skuIndex < 0 || (litersIndex < 0 && barrelsIndex < 0)) {
     throw new Error("El CSV debe incluir sucursal, SKU/producto y litros_vendidos o barriles_vendidos.");
   }
 
-  return rows.slice(1).map((row) => {
+  return rows.slice(1).filter((row) => {
+    const outputType = outputTypeIndex >= 0 ? normalizeText(row[outputTypeIndex]) : "venta";
+    const format = formatIndex >= 0 ? normalizeText(row[formatIndex]) : "barril";
+    const type = typeIndex >= 0 ? normalizeText(row[typeIndex]) : "cerveza";
+    return outputType === "venta" && format.includes("barril") && type.includes("cerveza");
+  }).map((row) => {
     const liters = litersIndex >= 0 ? parseNumber(row[litersIndex]) : parseNumber(row[barrelsIndex]) * 30;
+    const rawBranch = row[branchIndex]?.trim() || (fallbackBranchIndex >= 0 ? row[fallbackBranchIndex]?.trim() : "");
     return {
       fecha: dateIndex >= 0 ? row[dateIndex] : "",
-      sucursal: row[branchIndex]?.trim() ?? "",
-      sku: row[skuIndex]?.trim() ?? "",
+      sucursal: normalizeBranch(rawBranch ?? ""),
+      sku: normalizeSku(row[skuIndex]?.trim() ?? ""),
       litros_vendidos: liters
     };
   }).filter((record) => record.sucursal && record.sku && record.litros_vendidos > 0);
+}
+
+export function normalizeGoogleSheetsCsvUrl(url: string): string {
+  const trimmed = url.trim();
+  const match = trimmed.match(/\/spreadsheets\/d\/([^/]+)/);
+  if (!match) return trimmed;
+  const gidMatch = trimmed.match(/[?&#]gid=(\d+)/);
+  const gid = gidMatch?.[1] ?? "0";
+  return `https://docs.google.com/spreadsheets/d/${match[1]}/export?format=csv&gid=${gid}`;
 }
 
 export function calculateDemand(inventories: Inventario[], sales: SalesRecord[], settings: DemandSettings): DemandRow[] {
@@ -166,7 +185,9 @@ function findHeader(headers: string[], candidates: string[]): number {
 
 function parseNumber(value: string | undefined): number {
   if (!value) return 0;
-  return Number(value.replace(/\./g, "").replace(",", ".")) || 0;
+  const cleaned = value.replace(/[$\s]/g, "");
+  if (cleaned === "-" || cleaned === "") return 0;
+  return Number(cleaned.replace(/\./g, "").replace(",", ".")) || 0;
 }
 
 function keyFor(branch: string, sku: string): string {
@@ -175,4 +196,35 @@ function keyFor(branch: string, sku: string): string {
 
 function round(value: number): number {
   return Math.round(value * 10) / 10;
+}
+
+function normalizeText(value: string | undefined): string {
+  return (value ?? "").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+function normalizeBranch(value: string): string {
+  const normalized = normalizeText(value);
+  if (normalized.includes("patio bellavista")) return "Kross Bar Patio Bellavista";
+  if (normalized.includes("bellavista")) return "Kross Bar Bellavista";
+  if (normalized.includes("borderio") || normalized.includes("borde rio")) return "Kross Bar Borderío";
+  if (normalized.includes("orrego")) return "Kross Bar Orrego Luco";
+  if (normalized.includes("vina") || normalized.includes("viña")) return "Kross Bar Viña del Mar";
+  return value.trim();
+}
+
+function normalizeSku(value: string): string {
+  const normalized = normalizeText(value);
+  if (normalized.includes("ipapomelo") || normalized.includes("ipa pomelo")) return "Kross IPA Pomelo";
+  if (normalized.includes("hazy")) return "Kross Hazy Lager";
+  if (normalized.includes("berries") || normalized.includes("berry")) return "Kross Berry";
+  if (normalized.includes("golden")) return "Kross Golden";
+  if (normalized.includes("pils")) return "Kross Pilsner";
+  if (normalized.includes("stout") && !normalized.includes("imperial")) return "Kross Stout";
+  if (normalized.includes("maibock")) return "Kross Maibock";
+  if (normalized.includes("k5")) return "Kross K5";
+  if (normalized.includes("ipa")) return "Kross IPA";
+  if (normalized.includes("odissea")) return "Odissea Hoppy Ale";
+  if (normalized.includes("imperial")) return "Imperial Stout";
+  if (normalized.includes("coffee")) return "Coffee Twist";
+  return value.trim();
 }

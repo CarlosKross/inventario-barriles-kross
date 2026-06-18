@@ -41,10 +41,12 @@ El resultado queda en `dist/`.
 
 Para analizar demanda sin costos:
 
-1. En Google Sheets, usa columnas: `fecha`, `sucursal`, `sku`, `litros_vendidos`.
-2. También puedes usar `barriles_vendidos`; la app lo convierte a litros con barriles de 30 L.
-3. Comparte o publica la hoja como CSV.
-4. En la app, entra a **Admin > Demanda** y pega la URL CSV o importa un archivo `.csv`.
+1. En Google Sheets, puedes usar columnas simples: `fecha`, `sucursal`, `sku`, `litros_vendidos`.
+2. También acepta la hoja Kross actual con columnas: `Fecha`, `Tipo salida`, `Descripción`, `Tipo`, `Formato`, `Litros`, `Destino` y `Destino Corregido`.
+3. La app filtra `Tipo salida = Venta`, `Tipo = CERVEZA` y `Formato = BARRIL`.
+4. También puedes usar `barriles_vendidos`; la app lo convierte a litros con barriles de 30 L.
+5. Comparte o publica la hoja como CSV.
+6. En la app, entra a **Admin > Demanda** y pega la URL normal de Google Sheets o importa un archivo `.csv`.
 
 Si el enlace de Google pide iniciar sesión, la app no podrá leerlo. Debe estar publicado o compartido como lector.
 

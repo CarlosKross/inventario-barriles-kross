@@ -45,7 +45,7 @@ import { getBranchByAccess, getBranches, getProducts, persistBranch, persistProd
 import { getInventories, persistInventory } from "./lib/inventoryStore";
 import { exportLocalBackup, importLocalBackup } from "./lib/backup";
 import { appPath, routePath } from "./lib/routing";
-import { calculateDemand, loadSales, parseSalesCSV, saveSales, type DemandRow, type SalesRecord } from "./lib/demand";
+import { calculateDemand, loadSales, normalizeGoogleSheetsCsvUrl, parseSalesCSV, saveSales, type DemandRow, type SalesRecord } from "./lib/demand";
 
 const defaultDraft = (cluster: Cluster): DraftItem => ({
   producto_id: "",
@@ -682,7 +682,7 @@ function AdminDemandPage() {
       return;
     }
     try {
-      const response = await fetch(csvUrl.trim());
+      const response = await fetch(normalizeGoogleSheetsCsvUrl(csvUrl));
       if (!response.ok) throw new Error("No se pudo descargar el CSV.");
       await importFromText(await response.text());
     } catch (error) {
