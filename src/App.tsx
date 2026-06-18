@@ -656,8 +656,8 @@ function AdminDemandPage() {
   const [rows, setRows] = useState<DemandRow[]>([]);
   const [csvUrl, setCsvUrl] = useState("");
   const [message, setMessage] = useState("");
-  const [diasMinimos, setDiasMinimos] = useState(4);
-  const [diasMaximos, setDiasMaximos] = useState(12);
+  const [diasMinimos, setDiasMinimos] = useState(10);
+  const [diasMaximos, setDiasMaximos] = useState(15);
 
   useEffect(() => {
     void getInventories()
@@ -698,6 +698,9 @@ function AdminDemandPage() {
           <h2 className="text-lg font-black">Importar ventas desde Google Sheets</h2>
           <p className="text-sm text-neutral-600">
             Usa un CSV con columnas: fecha, sucursal, sku y litros_vendidos. También sirve barriles_vendidos en lugar de litros.
+          </p>
+          <p className="text-sm font-semibold text-neutral-700">
+            Política de reposición semanal: alerta bajo 10 días de inventario y sobrestock sobre 15 días.
           </p>
           <div className="grid gap-3 md:grid-cols-[1fr_auto]">
             <input className="field-control" value={csvUrl} onChange={(event) => setCsvUrl(event.target.value)} placeholder="URL pública CSV de Google Sheets" />

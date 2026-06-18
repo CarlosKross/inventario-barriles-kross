@@ -50,6 +50,14 @@ Para analizar demanda sin costos:
 
 Si el enlace de Google pide iniciar sesión, la app no podrá leerlo. Debe estar publicado o compartido como lector.
 
+Política de reposición:
+
+- Reposición de barriles: semanal.
+- Inventario mínimo recomendado: 10 días.
+- Inventario máximo recomendado: 15 días.
+- La app marca `Falta` bajo 10 días y `Sobrestock` sobre 15 días.
+- Los barriles sugeridos reponen hasta el objetivo de 15 días de cobertura.
+
 ## Supabase opcional
 
 La app funciona gratis en modo local si no hay variables Supabase. En ese modo usa `localStorage` y no requiere cuentas, servidores ni servicios externos.
