@@ -6,6 +6,7 @@ import {
   LayoutDashboard,
   LogOut,
   ExternalLink,
+  LineChart,
   Package,
   Pencil,
   Plus,
@@ -44,6 +45,7 @@ import { getBranchByAccess, getBranches, getProducts, persistBranch, persistProd
 import { getInventories, persistInventory } from "./lib/inventoryStore";
 import { exportLocalBackup, importLocalBackup } from "./lib/backup";
 import { appPath, routePath } from "./lib/routing";
+import { calculateDemand, loadSales, parseSalesCSV, saveSales, type DemandRow, type SalesRecord } from "./lib/demand";
 
 const defaultDraft = (cluster: Cluster): DraftItem => ({
   producto_id: "",
@@ -53,7 +55,7 @@ const defaultDraft = (cluster: Cluster): DraftItem => ({
   observacion: ""
 });
 
-type AdminPage = "dashboard" | "skus" | "sucursales";
+type AdminPage = "dashboard" | "skus" | "sucursales" | "demanda";
 type ProductDraft = Pick<Product, "name" | "family" | "format_liters" | "active" | "sort_order">;
 type BranchDraft = Pick<Branch, "name" | "slug" | "active">;
 
@@ -130,7 +132,7 @@ function App() {
       }} />;
     }
 
-    const page: AdminPage = path.includes("/admin/skus") ? "skus" : path.includes("/admin/sucursales") ? "sucursales" : "dashboard";
+    const page: AdminPage = path.includes("/admin/skus") ? "skus" : path.includes("/admin/sucursales") ? "sucursales" : path.includes("/admin/demanda") ? "demanda" : "dashboard";
     return (
       <AdminShell
         page={page}
@@ -164,6 +166,7 @@ function App() {
             }}
           />
         ) : null}
+        {page === "demanda" ? <AdminDemandPage /> : null}
       </AdminShell>
     );
   }
@@ -402,7 +405,8 @@ function AdminShell({ page, navigate, onLogout, children }: { page: AdminPage; n
   const items = [
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, path: "/admin/dashboard" },
     { id: "skus", label: "SKU", icon: Package, path: "/admin/skus" },
-    { id: "sucursales", label: "Sucursales", icon: Store, path: "/admin/sucursales" }
+    { id: "sucursales", label: "Sucursales", icon: Store, path: "/admin/sucursales" },
+    { id: "demanda", label: "Demanda", icon: LineChart, path: "/admin/demanda" }
   ] as const;
 
   return (
@@ -645,6 +649,141 @@ function AdminBranchesPage({
       {(creating || editing) ? <BranchFormModal branch={editing} onClose={() => { setCreating(false); setEditing(null); }} onSave={saveBranch} /> : null}
     </div>
   );
+}
+
+function AdminDemandPage() {
+  const [sales, setSales] = useState<SalesRecord[]>(() => loadSales());
+  const [rows, setRows] = useState<DemandRow[]>([]);
+  const [csvUrl, setCsvUrl] = useState("");
+  const [message, setMessage] = useState("");
+  const [diasMinimos, setDiasMinimos] = useState(4);
+  const [diasMaximos, setDiasMaximos] = useState(12);
+
+  useEffect(() => {
+    void getInventories()
+      .then((inventories) => setRows(calculateDemand(inventories, sales, { diasMinimos, diasMaximos })))
+      .catch(() => setRows([]));
+  }, [sales, diasMinimos, diasMaximos]);
+
+  function persistSales(nextSales: SalesRecord[]) {
+    setSales(nextSales);
+    saveSales(nextSales);
+    setMessage(`${nextSales.length} registros de venta cargados.`);
+  }
+
+  async function importFromText(csv: string) {
+    const nextSales = parseSalesCSV(csv);
+    persistSales(nextSales);
+  }
+
+  async function importFromUrl() {
+    if (!csvUrl.trim()) {
+      setMessage("Ingresa una URL pública CSV.");
+      return;
+    }
+    try {
+      const response = await fetch(csvUrl.trim());
+      if (!response.ok) throw new Error("No se pudo descargar el CSV.");
+      await importFromText(await response.text());
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "No se pudo importar la URL.");
+    }
+  }
+
+  return (
+    <div className="grid gap-5">
+      <PageTitle title="Demanda" action="Ventas, cobertura y reposición" />
+      <section className="grid gap-4 rounded-lg border border-neutral-200 bg-white p-4 shadow-soft xl:grid-cols-[1fr_22rem]">
+        <div className="grid gap-3">
+          <h2 className="text-lg font-black">Importar ventas desde Google Sheets</h2>
+          <p className="text-sm text-neutral-600">
+            Usa un CSV con columnas: fecha, sucursal, sku y litros_vendidos. También sirve barriles_vendidos en lugar de litros.
+          </p>
+          <div className="grid gap-3 md:grid-cols-[1fr_auto]">
+            <input className="field-control" value={csvUrl} onChange={(event) => setCsvUrl(event.target.value)} placeholder="URL pública CSV de Google Sheets" />
+            <button className="action-button bg-kross-black text-white" type="button" onClick={() => void importFromUrl()}>
+              Importar URL
+            </button>
+          </div>
+          <label className="action-button w-full cursor-pointer border border-neutral-300 bg-white text-neutral-800 md:w-max">
+            Importar archivo CSV
+            <input
+              className="hidden"
+              type="file"
+              accept=".csv,text/csv"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (!file) return;
+                void file.text().then(importFromText).catch(() => setMessage("No se pudo leer el archivo."));
+              }}
+            />
+          </label>
+          {message ? <p className="text-sm font-semibold text-kross-green">{message}</p> : null}
+        </div>
+        <div className="grid gap-3 rounded-lg bg-neutral-100 p-3">
+          <label className="grid gap-2">
+            <span className="field-label">Días mínimos</span>
+            <input className="field-control" type="number" min="1" value={diasMinimos} onChange={(event) => setDiasMinimos(Number(event.target.value))} />
+          </label>
+          <label className="grid gap-2">
+            <span className="field-label">Días máximos</span>
+            <input className="field-control" type="number" min="1" value={diasMaximos} onChange={(event) => setDiasMaximos(Number(event.target.value))} />
+          </label>
+        </div>
+      </section>
+
+      <div className="grid gap-4 md:grid-cols-4">
+        <AdminMetric label="Ventas cargadas" value={sales.length} />
+        <AdminMetric label="SKU con falta" value={rows.filter((row) => row.estado === "Falta").length} />
+        <AdminMetric label="SKU con sobrestock" value={rows.filter((row) => row.estado === "Sobrestock").length} />
+        <AdminMetric label="Barriles sugeridos" value={rows.reduce((sum, row) => sum + row.barriles_sugeridos, 0)} />
+      </div>
+
+      <div className="overflow-x-auto rounded-lg border border-neutral-200 bg-white shadow-soft">
+        <table className="w-full min-w-[980px] text-left text-sm">
+          <thead className="bg-neutral-100 text-xs uppercase text-neutral-600">
+            <tr>
+              <th className="px-4 py-3">Sucursal</th>
+              <th className="px-4 py-3">SKU</th>
+              <th className="px-4 py-3 text-right">Stock litros</th>
+              <th className="px-4 py-3 text-right">Demanda diaria</th>
+              <th className="px-4 py-3 text-right">Días cobertura</th>
+              <th className="px-4 py-3">Estado</th>
+              <th className="px-4 py-3 text-right">Barriles sugeridos</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-neutral-200">
+            {rows.map((row) => (
+              <tr key={`${row.sucursal}-${row.sku}`}>
+                <td className="px-4 py-3 font-semibold">{row.sucursal}</td>
+                <td className="px-4 py-3">{row.sku}</td>
+                <td className="px-4 py-3 text-right">{row.stock_litros}</td>
+                <td className="px-4 py-3 text-right">{row.demanda_diaria_litros}</td>
+                <td className="px-4 py-3 text-right">{row.dias_cobertura}</td>
+                <td className="px-4 py-3"><DemandBadge status={row.estado} /></td>
+                <td className="px-4 py-3 text-right font-black">{row.barriles_sugeridos}</td>
+              </tr>
+            ))}
+            {rows.length === 0 ? (
+              <tr>
+                <td className="px-4 py-8 text-center text-neutral-500" colSpan={7}>Carga ventas y guarda inventarios para ver cobertura.</td>
+              </tr>
+            ) : null}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function DemandBadge({ status }: { status: DemandRow["estado"] }) {
+  const styles: Record<DemandRow["estado"], string> = {
+    Falta: "bg-red-50 text-red-700",
+    OK: "bg-green-50 text-kross-green",
+    Sobrestock: "bg-amber-50 text-amber-700",
+    "Sin ventas": "bg-neutral-100 text-neutral-600"
+  };
+  return <span className={`inline-flex rounded-full px-3 py-1 text-xs font-bold ${styles[status]}`}>{status}</span>;
 }
 
 function ProductFormModal({ product, onClose, onSave }: { product: Product | null; onClose: () => void; onSave: (draft: ProductDraft, id?: string) => Promise<void> }) {

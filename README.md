@@ -35,6 +35,18 @@ El resultado queda en `dist/`.
 - `/admin/dashboard` resumen admin.
 - `/admin/skus` mantención de SKU.
 - `/admin/sucursales` mantención de sucursales y links.
+- `/admin/demanda` importación de ventas y cálculo de cobertura.
+
+## Ventas desde Google Sheets
+
+Para analizar demanda sin costos:
+
+1. En Google Sheets, usa columnas: `fecha`, `sucursal`, `sku`, `litros_vendidos`.
+2. También puedes usar `barriles_vendidos`; la app lo convierte a litros con barriles de 30 L.
+3. Comparte o publica la hoja como CSV.
+4. En la app, entra a **Admin > Demanda** y pega la URL CSV o importa un archivo `.csv`.
+
+Si el enlace de Google pide iniciar sesión, la app no podrá leerlo. Debe estar publicado o compartido como lector.
 
 ## Supabase opcional
 
